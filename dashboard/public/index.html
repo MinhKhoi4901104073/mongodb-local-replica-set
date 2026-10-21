@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MongoDB Distributed Storage Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <div class="brand-row">
+        <h1>MongoDB Replica Set Orchestrator</h1>
+        <span class="badge cloud-badge">Private Cloud</span>
+        <span class="badge topic-badge">Topic 21</span>
+      </div>
+      <p class="subtitle">Distributed Storage & Automated Failover System (High Availability)</p>
+    </div>
+      <a href="http://localhost:8081" target="_blank" class="btn btn-mongo-express" title="Open Mongo Express">
+        Mongo Express
+      </a>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <section class="kpi-grid">
+      <div class="kpi-card glass">
+        <div class="kpi-header">
+          <span class="kpi-title">Cluster Status</span>
+          <span class="status-indicator" id="clusterStatusIndicator"></span>
+        </div>
+        <div class="kpi-value" id="kpiClusterStatus">Checking...</div>
+        <div class="kpi-sub" id="kpiQuorum">Quorum: 2/3 Nodes Required</div>
+      </div>
+
+      <div class="kpi-card glass">
+        <div class="kpi-header">
+          <span class="kpi-title">Active Primary Node</span>
+        </div>
+        <div class="kpi-value text-green" id="kpiPrimaryNode">--</div>
+        <div class="kpi-sub" id="kpiPrimaryDetail">Write Target (Priority 2)</div>
+      </div>
+
+      <div class="kpi-card glass">
+        <div class="kpi-header">
+          <span class="kpi-title">Election Duration</span>
+        </div>
+        <div class="kpi-value text-amber" id="kpiElectionTime">--</div>
+        <div class="kpi-sub" id="kpiElectionStatus">No benchmark recorded</div>
+      </div>
+
+      <div class="kpi-card glass">
+        <div class="kpi-header">
+          <span class="kpi-title">Client Transactions</span>
+        </div>
+        <div class="kpi-value text-cyan" id="kpiTrafficCount">0</div>
+        <div class="kpi-sub" id="kpiTrafficStatus">writeConcern: majority</div>
+      </div>
+    </section>
+
+    <section class="section-container">
+      <div class="section-header">
+        <div>
+          <h2>Container Topology (3 Nodes)</h2>
+          <p class="section-desc">Isolated bridge network subnet 172.20.0.0/16 with dedicated persistent volumes</p>
+        </div>
+        <div class="cluster-actions">
+          <button id="btnRefresh" class="btn btn-secondary btn-sm">Refresh</button>
+        </div>
+      </div>
+
+      <div class="nodes-grid" id="nodesContainer">
+        <div class="node-card glass" id="card-mongo1">
+          <div class="node-header">
+            <div class="node-identity">
+              <span class="node-name">mongo1</span>
+              <span class="node-role-badge badge-primary" id="role-mongo1">PRIMARY</span>
+            </div>
+            <span class="node-status-dot dot-online" id="dot-mongo1"></span>
+          </div>
+          <div class="node-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Internal IP</span>
+              <span class="meta-val">172.20.0.11</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Host Port</span>
+              <span class="meta-val">27017</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Volume</span>
+              <span class="meta-val">mongo1-data</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Config</span>
+              <span class="meta-val">Priority 2 (1 Vote)</span>
+            </div>
+          </div>
+          <div class="node-footer">
+            <span class="node-health" id="health-mongo1">Status: HEALTHY</span>
+            <button class="btn btn-node-action btn-danger btn-sm" id="btnToggle-mongo1" onclick="toggleNode('mongo1')">
+              Stop Node
+            </button>
+          </div>
+        </div>
+
+        <div class="node-card glass" id="card-mongo2">
+          <div class="node-header">
+            <div class="node-identity">
+              <span class="node-name">mongo2</span>
+              <span class="node-role-badge badge-secondary" id="role-mongo2">SECONDARY</span>
+            </div>
+            <span class="node-status-dot dot-online" id="dot-mongo2"></span>
+          </div>
+          <div class="node-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Internal IP</span>
+              <span class="meta-val">172.20.0.12</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Host Port</span>
+              <span class="meta-val">27018</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Volume</span>
+              <span class="meta-val">mongo2-data</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Config</span>
+              <span class="meta-val">Priority 1 (1 Vote)</span>
+            </div>
+          </div>
+          <div class="node-footer">
+            <span class="node-health" id="health-mongo2">Status: HEALTHY</span>
+            <button class="btn btn-node-action btn-danger btn-sm" id="btnToggle-mongo2" onclick="toggleNode('mongo2')">
+              Stop Node
+            </button>
+          </div>
+        </div>
+
+        <div class="node-card glass" id="card-mongo3">
+          <div class="node-header">
+            <div class="node-identity">
+              <span class="node-name">mongo3</span>
+              <span class="node-role-badge badge-secondary" id="role-mongo3">SECONDARY</span>
+            </div>
+            <span class="node-status-dot dot-online" id="dot-mongo3"></span>
+          </div>
+          <div class="node-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Internal IP</span>
+              <span class="meta-val">172.20.0.13</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Host Port</span>
+              <span class="meta-val">27019</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Volume</span>
+              <span class="meta-val">mongo3-data</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Config</span>
+              <span class="meta-val">Priority 1 (1 Vote)</span>
+            </div>
+          </div>
+          <div class="node-footer">
+            <span class="node-health" id="health-mongo3">Status: HEALTHY</span>
+            <button class="btn btn-node-action btn-danger btn-sm" id="btnToggle-mongo3" onclick="toggleNode('mongo3')">
+              Stop Node
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-container">
+      <div class="orchestrator-panel glass">
+        <div class="panel-header">
+          <div>
+            <h3>Failover Control Center</h3>
+            <p class="section-desc">Trigger fault tolerance benchmarks and monitor consensus election</p>
+          </div>
+          <div class="election-stopwatch glass" id="stopwatchBox">
+            <span class="stopwatch-label">ELECTION TIMER:</span>
+            <span class="stopwatch-digits" id="stopwatchVal">00.00s</span>
+          </div>
+        </div>
+
+        <div class="control-actions-grid">
+          <div class="action-card">
+            <div class="action-desc">
+              <strong>Simulate Primary Failover</strong>
+              <span>Stops the active Primary container to initiate Raft consensus election across remaining secondaries.</span>
+            </div>
+            <button id="btnKillPrimary" class="btn btn-kill">
+              Simulate Failure
+            </button>
+          </div>
+
+          <div class="action-card">
+            <div class="action-desc">
+              <strong>Restore Cluster Nodes</strong>
+              <span>Starts stopped nodes and triggers oplog catch-up replication to return nodes to SECONDARY state.</span>
+            </div>
+            <button id="btnRecoverAll" class="btn btn-recover">
+              Restore Nodes
+            </button>
+          </div>
+
+          <div class="action-card">
+            <div class="action-desc">
+              <strong>Client Workload Stream</strong>
+              <span>Emits continuous transactional writes with majority acknowledgement and transparent retry logic.</span>
+            </div>
+            <div class="traffic-btn-group">
+              <button id="btnToggleTraffic" class="btn btn-traffic">
+                <span id="trafficBtnLabel">Start Workload</span>
+              </button>
+              <button id="btnWriteSingle" class="btn btn-secondary btn-sm">
+                +1 Write
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-container split-grid">
+      <div class="stream-panel glass">
+        <div class="panel-subhead">
+          <div class="panel-title-with-pill">
+            <h3>Live Client Workload</h3>
+            <span class="live-pill" id="livePill">LIVE</span>
+          </div>
+          <span class="table-counter" id="txCountBadge">0 records</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="tx-table">
+            <thead>
+              <tr>
+                <th>Tx ID</th>
+                <th>Service</th>
+                <th>Amount</th>
+                <th>Latency</th>
+                <th>Status</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="txTableBody">
+              <tr>
+                <td colspan="6" class="text-center text-muted">Click "Start Workload" or "+1 Write" to observe real-time database transactions.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="audit-panel glass">
+        <div class="panel-subhead">
+          <h3>Cluster Audit Stream</h3>
+          <button id="btnClearLog" class="btn btn-sm btn-ghost">Clear</button>
+        </div>
+        <div class="event-stream" id="eventStream">
+          <div class="event-line info">
+            <span class="event-time">[INIT]</span>
+            <span class="event-msg">Cluster monitor initialized. Connection established with rs0.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

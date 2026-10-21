@@ -1,28 +1,28 @@
-# MongoDB Local Replica Set – Đề tài 21
+# MongoDB Distributed Replica Set
 
 > **Sinh viên:** Nguyễn Minh Khôi &nbsp;·&nbsp; **MSSV:** 49.01.104.073  
 > **Môn học:** Điện toán đám mây &nbsp;·&nbsp; **Đề tài 21:** Tìm hiểu và triển khai CSDL NoSQL (MongoDB) phân tán cục bộ
 
 ---
 
-## 📋 Mục tiêu đề tài
+## Mục tiêu
 
 | # | Mục tiêu | Trạng thái |
-|---|----------|-----------|
-| 1 | Cài đặt MongoDB Replica Set 3 nodes (1 Primary + 2 Secondary) | ✅ |
-| 2 | Xác thực nội bộ bằng Keyfile (Shared Secret) | ✅ |
-| 3 | Đồng bộ dữ liệu tự động qua cơ chế **oplog replication** | ✅ |
-| 4 | Thử nghiệm tắt Primary → quan sát **Election** tự động | ✅ |
-| 5 | Node cũ tự join lại cluster sau khi khởi động | ✅ |
+|---|----------|:----------:|
+| 1 | Cài đặt MongoDB Replica Set 3 nodes (1 Primary + 2 Secondary) | Hoàn thành |
+| 2 | Xác thực nội bộ bằng Keyfile (Shared Secret) | Hoàn thành |
+| 3 | Đồng bộ dữ liệu tự động qua oplog replication | Hoàn thành |
+| 4 | Kiểm thử tắt Primary và đo lường quá trình Election tự động | Hoàn thành |
+| 5 | Tự động khôi phục và đồng bộ bù dữ liệu khi node cũ hoạt động lại | Hoàn thành |
 
 ---
 
-## 🏗 Kiến trúc hệ thống
+## Kiến trúc hệ thống
 
 ```
-Windows Host (Docker Desktop + WSL2)
+Host (Docker Desktop / WSL2)
 │
-├── Docker Bridge Network: mongo-replica-net (172.20.0.0/16)
+├── Bridge Network: mongo-replica-net (172.20.0.0/16)
 │   │
 │   ├── mongo1 (PRIMARY)    172.20.0.11  ←→ host:27017
 │   │    └── oplog ──────────────────────────────────────┐
@@ -33,268 +33,128 @@ Windows Host (Docker Desktop + WSL2)
 │   └── mongo3 (SECONDARY)  172.20.0.13  ←→ host:27019  │
 │        └── replicates oplog ◄──────────────────────────┘
 │
+├── Web GUI: Mongo Express  172.20.0.20  ←→ host:8081
 └── Volumes: mongo1-data, mongo2-data, mongo3-data (persistent)
 ```
 
-**Cơ chế Election (Raft-based):**
-```
-Primary bị tắt  →  Secondary phát hiện heartbeat timeout (~10s)
-                →  Gọi election (cần quorum: 2/3 nodes đồng ý)
-                →  Node có priority cao nhất được bầu làm Primary mới
-                →  Toàn bộ quá trình: 5–15 giây
-```
-
 ---
 
-## ⚙️ Yêu cầu hệ thống
-
-| Phần mềm | Phiên bản | Ghi chú |
-|----------|-----------|---------|
-| Docker Desktop | ≥ 4.x | Bật WSL2 backend |
-| Windows OS | 10/11 | WSL2 phải được kích hoạt |
-| RAM khả dụng | ≥ 3 GB | ~1 GB / container |
-| Disk | ≥ 5 GB | Cho volumes + images |
-
----
-
-## 🚀 Quick Start (Windows PowerShell)
-
-```powershell
-# 1. Clone repo
-git clone https://github.com/<your-username>/mongodb-local-replica-set
-cd mongodb-local-replica-set
-
-# 2. Chạy script setup tự động (tất cả trong 1 lệnh)
-.\scripts\setup.ps1
-
-# 3. Kiểm tra trạng thái cluster
-.\scripts\check-status.ps1
-
-# 4. Chạy Live Demo Election
-.\scripts\demo-election.ps1
-```
-
-**WSL / Linux:**
-```bash
-bash scripts/setup.sh
-bash scripts/check-status.sh   # (nếu có)
-bash scripts/demo-election.sh
-```
-
----
-
-## 📂 Cấu trúc thư mục
+## Cấu trúc thư mục
 
 ```
 mongodb-local-replica-set/
-│
-├── docker-compose.yml          # Định nghĩa 3 container MongoDB + network + volumes
-├── mongo-keyfile               # Shared Secret key (tạo tự động bởi setup.ps1)
-├── .gitignore
-│
+├── docker-compose.yml          # Cấu hình 3 nodes MongoDB, Mongo Express, network và volumes
+├── mongo-keyfile               # Shared secret key xác thực nội bộ cluster
+├── dashboard/                  # Web Dashboard giám sát và điều khiển failover
+│   ├── server.js               # Backend Node.js kết nối cluster với retryWrites
+│   ├── package.json
+│   └── public/                 # Giao diện giám sát topology và workload thời gian thực
+│       ├── index.html
+│       ├── style.css
+│       └── app.js
 └── scripts/
-    ├── init-replica.js         # mongosh script: rs.initiate() + chờ election
-    ├── setup.ps1               # 🪟 Windows: setup đầy đủ tự động
-    ├── setup.sh                # 🐧 WSL/Linux: setup đầy đủ tự động
-    ├── demo-election.ps1       # 🪟 Windows: Live Demo cho Hội đồng
-    ├── demo-election.sh        # 🐧 WSL/Linux: Live Demo
-    └── check-status.ps1        # 🪟 Kiểm tra nhanh trạng thái cluster
+    ├── setup.ps1               # Khởi tạo và kiểm tra cluster tự động (Windows)
+    ├── setup.sh                # Khởi tạo và kiểm tra cluster tự động (Linux/WSL)
+    ├── status.ps1              # Kiểm tra nhanh trạng thái containers và replica set
+    ├── test_failover.ps1       # Kịch bản kiểm thử chuyển đổi dự phòng tự động (Windows)
+    ├── test_failover.sh        # Kịch bản kiểm thử chuyển đổi dự phòng tự động (Linux/WSL)
+    ├── start_dashboard.ps1     # Khởi chạy Web Dashboard (Windows)
+    ├── start_dashboard.sh      # Khởi chạy Web Dashboard (Linux/WSL)
+    └── init_replica.js         # Script mongosh cấu hình rs.initiate()
 ```
 
 ---
 
-## 🔧 Hướng dẫn chi tiết từng bước
+## Hướng dẫn sử dụng
 
-### Bước 1 – Chuẩn bị
+### 1. Khởi động cụm Replica Set
 
-Đảm bảo Docker Desktop đang chạy:
-```powershell
-docker --version
-docker info
-```
-
-### Bước 2 – Tạo Keyfile bảo mật
-
-Script `setup.ps1` tự động tạo keyfile bằng `RandomNumberGenerator` của .NET:
-```powershell
-# Thủ công (nếu muốn):
-$bytes = New-Object byte[] 756
-[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-[Convert]::ToBase64String($bytes) | Set-Content .\mongo-keyfile -Encoding ASCII -NoNewline
-```
-
-### Bước 3 – Khởi động cluster
+Yêu cầu Docker Desktop đang chạy:
 
 ```powershell
-docker compose up -d
+# Windows PowerShell
+.\scripts\setup.ps1
 
-# Kiểm tra logs
-docker logs mongo1 --tail 30
-docker logs mongo2 --tail 10
-```
-
-### Bước 4 – Khởi tạo Replica Set
-
-```powershell
-# Sao chép script vào container
-docker cp scripts/init-replica.js mongo1:/tmp/
-
-# Chạy rs.initiate()
-docker exec mongo1 mongosh -u admin -p AdminPass123 `
-    --authenticationDatabase admin /tmp/init-replica.js
-```
-
-### Bước 5 – Kiểm tra đồng bộ dữ liệu
-
-```javascript
-// Kết nối Primary (port 27017) và ghi dữ liệu:
-mongosh "mongodb://admin:AdminPass123@localhost:27017/admin?replicaSet=rs0"
-use demoDB
-db.test.insertOne({ message: "Hello Replica Set!", ts: new Date() })
-
-// Kết nối Secondary (port 27018) và đọc lại:
-// (thêm readPreference=secondary vào URI)
-mongosh "mongodb://admin:AdminPass123@localhost:27018/admin?replicaSet=rs0&readPreference=secondary"
-use demoDB
-db.test.find()   // Bản ghi vừa ghi ở Primary đã xuất hiện ✅
-```
-
----
-
-## 🎬 Kịch bản Live Demo
-
-> **Mở 3 Terminal** song song để demo trực quan nhất:
-
-```
-Terminal 1: .\scripts\demo-election.ps1    ← Script demo chính
-Terminal 2: docker stats                   ← Theo dõi tài nguyên containers
-Terminal 3: mongosh (kết nối cluster)      ← Query thủ công nếu cần
-```
-
-### Trình tự demo trước Hội đồng:
-
-| Bước | Hành động | Kết quả kỳ vọng |
-|------|-----------|-----------------|
-| 1 | Chạy `demo-election.ps1` | Hiện trạng thái ban đầu: mongo1=PRIMARY |
-| 2 | Xem `rs.status()` | 3 nodes, 1 PRIMARY, 2 SECONDARY |
-| 3 | Nhấn **ENTER** để tắt Primary | Script tự `docker stop mongo1` |
-| 4 | Quan sát output real-time | Election diễn ra trong **5–15 giây** |
-| 5 | Primary mới được bầu | mongo2 hoặc mongo3 trở thành PRIMARY |
-| 6 | Kiểm tra dữ liệu | Không mất bản ghi nào |
-| 7 | Nhấn **ENTER** để start lại mongo1 | mongo1 join lại thành SECONDARY |
-
-### Lệnh mongosh thủ công (để demo thêm):
-
-```javascript
-// Xem trạng thái tổng quan
-rs.status()
-
-// Xem ai là Primary
-rs.isMaster()
-
-// Xem oplog (nhật ký đồng bộ)
-use local
-db.oplog.rs.find().sort({$natural:-1}).limit(5)
-
-// Thống kê replication lag
-rs.printReplicationInfo()
-rs.printSecondaryReplicationInfo()
-```
-
----
-
-## 🔒 Bảo mật – Keyfile Authentication
-
-MongoDB yêu cầu tất cả nodes trong Replica Set phải có **cùng một keyfile**:
-
-```yaml
-# docker-compose.yml (đã cấu hình sẵn)
-volumes:
-  - ./mongo-keyfile:/auth/keyfile:ro   # Mount keyfile vào container
-
-command:
-  - mongod --replSet rs0 --keyFile /tmp/keyfile ...
-```
-
-- Keyfile được **sinh ngẫu nhiên** (756 bytes → Base64) mỗi lần chạy `setup.ps1 -Reset`
-- Chỉ container có keyfile hợp lệ mới được phép join cluster
-- External client vẫn dùng **username/password** (admin/AdminPass123)
-
----
-
-## 🛠 Xử lý sự cố thường gặp
-
-### Lỗi: `AuthenticationFailed`
-```powershell
-# Kiểm tra user đã tồn tại chưa
-docker exec mongo1 mongosh --eval "db.adminCommand('listUsers')"
-
-# Nếu cluster mới, chạy lại toàn bộ từ đầu:
+# Để xóa sạch volume và dựng lại từ đầu:
 .\scripts\setup.ps1 -Reset
 ```
 
-### Lỗi: `Connection refused`
-```powershell
-# Kiểm tra container có đang chạy không
-docker ps -a
-
-# Xem log lỗi
-docker logs mongo1 --tail 50
+Linux / WSL:
+```bash
+bash scripts/setup.sh
+# hoặc: bash scripts/setup.sh --reset
 ```
 
-### Lỗi: `keyfile too short` hoặc `bad characters`
+### 2. Kiểm tra trạng thái cụm
+
 ```powershell
-# Tạo lại keyfile
-.\scripts\setup.ps1 -Reset
+.\scripts\status.ps1
 ```
 
-### Replica Set không bầu được Primary
-```powershell
-# Kiểm tra quorum (cần ít nhất 2/3 nodes ONLINE)
-.\scripts\check-status.ps1
+Kết quả hiển thị:
+- Trạng thái Docker containers (`mongo1`, `mongo2`, `mongo3`)
+- Vai trò hiện tại của từng member trong `rs.status()` (`PRIMARY` / `SECONDARY`)
 
-# Khởi động node bị tắt
-docker start mongo2
-docker start mongo3
+### 3. Kiểm thử chuyển đổi dự phòng (Failover Test)
+
+```powershell
+.\scripts\test_failover.ps1
 ```
 
-### Xóa sạch và bắt đầu lại
+Quy trình thực thi của script:
+1. Xác định Primary hiện tại và ghi 1 bản ghi kiểm chứng vào `demoDB.failover_test`.
+2. Dừng container Primary (`docker stop`).
+3. Đo thời gian hệ thống tiến hành Election qua giao thức đồng thuận (5–15 giây).
+4. Xác minh Primary mới được bầu và kiểm tra toàn vẹn dữ liệu (0% mất mát).
+5. Khởi động lại container cũ (`docker start`) và xác nhận node cũ tự động tái gia nhập với vai trò `SECONDARY`.
+
+### 4. Khởi chạy Web Dashboard
+
 ```powershell
-docker compose down -v        # Xóa containers + volumes
-.\scripts\setup.ps1 -Reset   # Tạo lại từ đầu
+.\scripts\start_dashboard.ps1
 ```
+Trình duyệt tự động mở tại `http://localhost:3000`. Dashboard cung cấp:
+- Trực quan hóa sơ đồ 3 nodes và tình trạng kết nối.
+- Nút kích hoạt kiểm thử ngắt Primary và đồng hồ đo thời gian Election.
+- Trình tạo luồng ghi dữ liệu khách hàng (Client Workload) với `writeConcern: majority` để quan sát tính trong suốt của kết nối khi xảy ra failover.
+
+### 5. Giao diện quản trị Mongo Express
+
+Mở trình duyệt tại: `http://localhost:8081`  
+Cho phép xem trực tiếp cơ sở dữ liệu `demoDB`, collection `live_transactions`, và nhật ký `local.oplog.rs`.
 
 ---
 
-## 📊 Các lệnh hữu ích
+## Phân tích Kiến trúc Kỹ thuật
 
-```powershell
-# Khởi động / dừng cluster
-docker compose up -d
-docker compose down
+### 1. Bản chất Ảo hóa (Virtualization Architecture)
+- **Ảo hóa mức Hệ điều hành (OS-Level Virtualization / Containerization):** Hệ thống sử dụng Docker Container để đóng gói từng máy chủ cơ sở dữ liệu độc lập.
+  - **Linux Namespaces:**
+    - *Network Namespace:* Mỗi container sở hữu card mạng ảo và địa chỉ IP riêng biệt (`172.20.0.11`, `172.20.0.12`, `172.20.0.13`) trong Docker Bridge Network.
+    - *Mount Namespace:* Cô lập hoàn toàn hệ thống tệp và volume dữ liệu của từng máy chủ.
+  - **Control Groups (cgroups):** Giới hạn định mức tài nguyên CPU/RAM cho từng node, mô phỏng đúng các Compute Instances trên Cloud.
+- **Hạ tầng nền tảng:** Docker Desktop trên Windows sử dụng backend WSL2 – hoạt động như một micro-virtual machine được quản lý bởi Hyper-V Type-1 Hypervisor.
 
-# Xem logs
-docker logs mongo1 -f
-
-# Kết nối trực tiếp vào node
-docker exec -it mongo1 mongosh -u admin -p AdminPass123 --authenticationDatabase admin
-
-# Xem thống kê resources
-docker stats mongo1 mongo2 mongo3
-
-# Kết nối bằng MongoDB Compass
-# URI: mongodb://admin:AdminPass123@localhost:27017,localhost:27018,localhost:27019/admin?replicaSet=rs0
-```
+### 2. Tiêu chuẩn Lưu trữ Đám mây (Cloud Storage)
+- **Tính Bền vững (Data Persistence):** Hệ thống phân tách giữa Compute Layer (container `mongod`) và Storage Layer (Docker Named Volumes `mongo1-data`, `mongo2-data`, `mongo3-data`). Dữ liệu tồn tại độc lập với vòng đời của container.
+- **Tính Sẵn Sàng Cao (High Availability) & Khả năng Chịu Lỗi (Fault Tolerance):**
+  - Khi node Primary gặp sự cố, các node Secondary phát hiện qua heartbeat timeout (10 giây) và kích hoạt thuật toán Raft để bầu Primary mới.
+  - Thời gian phục hồi dịch vụ (RTO): 5 đến 15 giây.
+- **Định lý CAP:**
+  - MongoDB Replica Set là hệ thống theo mô hình **CP (Consistency & Partition Tolerance)**.
+  - Khi xảy ra phân rã mạng, hệ thống ưu tiên tính nhất quán dữ liệu thông qua nhật ký đồng bộ **Oplog Replication**.
+- **Kiểm soát Lưu trữ Phân tán:**
+  - `writeConcern: { w: "majority" }`: Dữ liệu chỉ được xác nhận khi đã ghi an toàn vào đa số các node trong cụm (Quorum $\ge 2/3$).
+  - `retryWrites: true`: Client driver tự động lưu đệm và gửi lại truy vấn khi phát hiện cụm đang bầu chọn, đảm bảo quá trình failover diễn ra trong suốt.
+- **Nguyên tắc Quorum và Phòng chống Split-Brain:**
+  - Cụm duy trì số lượng node lẻ ($N = 3$), yêu cầu túc số quá bán $Quorum = \lfloor N/2 \rfloor + 1 = 2$.
+  - Loại bỏ hoàn toàn nguy cơ 2 node cùng tự nhận là Primary khi có sự cố chia cắt mạng.
 
 ---
 
-## 📚 Tài liệu tham khảo
+## Tài liệu tham khảo
 
 - [MongoDB Replica Set Documentation](https://www.mongodb.com/docs/manual/replication/)
 - [MongoDB Keyfile Authentication](https://www.mongodb.com/docs/manual/tutorial/deploy-replica-set-with-keyfile-access-control/)
-- [Docker Compose Reference](https://docs.docker.com/compose/)
-- [MongoDB Election Mechanics](https://www.mongodb.com/docs/manual/core/replica-set-elections/)
-
----
-
-*Đề tài 21 – Học kỳ 2025–2026 | Khoa Công nghệ Thông tin*
+- [Docker Compose Specification](https://docs.docker.com/compose/)
+- [MongoDB Replication Election Mechanics](https://www.mongodb.com/docs/manual/core/replica-set-elections/)

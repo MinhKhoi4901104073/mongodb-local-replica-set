@@ -1,14 +1,3 @@
-# ================================================================
-#
-#  Kiến trúc:
-#    mongo1 (Primary)    172.20.0.11  → host:27017
-#    mongo2 (Secondary)  172.20.0.12  → host:27018
-#    mongo3 (Secondary)  172.20.0.13  → host:27019
-#
-#  Khởi động: docker compose up -d
-#  Dừng toàn bộ: docker compose down -v
-# ================================================================
-
 networks:
   mongo-net:
     name: mongo-replica-net
@@ -18,12 +7,9 @@ networks:
       config:
         - subnet: 172.20.0.0/16
 
-# ── Template chung cho cả 3 nodes ────────────────────────────────
 x-mongo-common: &mongo-common
   image: mongo:7.0
   restart: unless-stopped
-  # Ghi đè entrypoint để sao chép keyfile và đặt quyền 400
-  # trước khi gọi docker-entrypoint.sh chính thức (xử lý MONGO_INITDB)
   entrypoint: ["/bin/bash", "-c"]
   environment:
     MONGO_INITDB_ROOT_USERNAME: admin
@@ -33,12 +19,9 @@ x-mongo-common: &mongo-common
     interval: 10s
     timeout: 5s
     retries: 12
-    start_period: 45s
+    start_period: 30s
 
-# ── Services ──────────────────────────────────────────────────────
 services:
-
-  # ── Node 1: PRIMARY (ưu tiên cao nhất) ──────────────────────────
   mongo1:
     <<: *mongo-common
     container_name: mongo1
@@ -60,7 +43,6 @@ services:
         --bind_ip_all
         --port 27017
 
-  # ── Node 2: SECONDARY ───────────────────────────────────────────
   mongo2:
     <<: *mongo-common
     container_name: mongo2
@@ -82,7 +64,6 @@ services:
         --bind_ip_all
         --port 27017
 
-  # ── Node 3: SECONDARY ───────────────────────────────────────────
   mongo3:
     <<: *mongo-common
     container_name: mongo3
@@ -104,7 +85,22 @@ services:
         --bind_ip_all
         --port 27017
 
-# ── Named Volumes ─────────────────────────────────────────────────
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express
+    restart: unless-stopped
+    networks:
+      mongo-net:
+        ipv4_address: 172.20.0.20
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: AdminPass123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:AdminPass123@mongo1:27017,mongo2:27017,mongo3:27017/admin?replicaSet=rs0&authSource=admin
+      ME_CONFIG_BASICAUTH: "false"
+
 volumes:
   mongo1-data:
     name: mongo1-data
